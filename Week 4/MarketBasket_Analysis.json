@@ -1,0 +1,142 @@
+{
+    "title": "Market Basket Analysis",
+    "functions": {
+      "fetch_orders_data": {
+        "description": "Fetch orders data from MySQL",
+        "implementation": [
+          "import mysql.connector",
+          "import pandas as pd",
+          {
+            "connection": {
+              "host": "103.219.251.246",
+              "user": "braincor_ps01",
+              "password": "Bangkit12345.",
+              "database": "braincor_ps01"
+            },
+            "query": "SELECT ID, order_date, ship_date, customer_id, product_id, product_name FROM orders",
+            "data_fetching": {
+              "cursor": {
+                "execute": "query",
+                "fetchall": {}
+              },
+              "close": "cursor",
+              "conn_close": "conn"
+            },
+            "data_frame": {
+              "columns": ["ID", "order_date", "ship_date", "customer_id", "product_id", "product_name"],
+              "data": "fetched_data"
+            }
+          }
+        ]
+      },
+      "market_basket_analysis": {
+        "description": "Perform market basket analysis",
+        "params": ["orders_df"],
+        "implementation": [
+          {
+            "copy_df": "orders_df",
+            "convert_to_datetime": "order_date",
+            "group_by_customer": {
+              "transactions": {
+                "apply_list": "product_name",
+                "reset_index": {}
+              }
+            },
+            "prepare_data": {
+              "transaction_list": "transactions['product_name'].tolist()",
+              "transaction_encoder": {
+                "fit_transform": "transaction_list"
+              },
+              "transaction_df": {
+                "data": "transaction_encoder_ary",
+                "columns": "transaction_encoder.columns_"
+              }
+            },
+            "apply_apriori_algorithm": {
+              "frequent_itemsets": {
+                "min_support": 0.0001,
+                "use_colnames": true
+              },
+              "generate_association_rules": {
+                "metric": "lift",
+                "min_threshold": 0.001,
+                "filter_rules": "confidence < 1",
+                "add_count": "sum(transaction_df[list(row['antecedents'])].all(axis=1) & transaction_df[list(row['consequents'])].all(axis=1))",
+                "create_basket_pair": "antecedents, consequents"
+              }
+            }
+          },
+          "return_rules"
+        ]
+      }
+    },
+    "streamlit_app": {
+      "title": "Market Basket Analysis",
+      "display_data": "orders_df",
+      "button": {
+        "label": "Run Market Basket Analysis",
+        "on_click": {
+          "rules": "market_basket_analysis(orders_df)",
+          "display_rules": "rules[['basket_pair', 'support', 'confidence', 'lift', 'count']]",
+          "extract_unique_pairs": {
+            "seen_pairs": "set()",
+            "unique_top_rules": [],
+            "iterate_rules": {
+              "top_20_lift": {
+                "pair": "rule['basket_pair']",
+                "check_seen_pairs": "if pair not in seen_pairs",
+                "add_to_unique_rules": "unique_top_rules.append(rule)",
+                "add_to_seen_pairs": "seen_pairs.add(pair)"
+              },
+              "check_top_10_rules": "if len(unique_top_rules) == 10"
+            },
+            "create_dataframe": "unique_top_rules",
+            "create_bar_chart": {
+              "figure": "plt.subplots()",
+              "colors": "plt.cm.tab20.colors",
+              "plot": {
+                "kind": "barh",
+                "x": "basket_pair",
+                "y": "lift",
+                "ax": "ax",
+                "color": "colors",
+                "legend": false
+              },
+              "set_titles_labels": {
+                "title": "Top 10 Unique Association Rules by Lift",
+                "xlabel": "Lift",
+                "ylabel": "Basket Pair",
+                "set_xlim": "0, max_lift * 1.1",
+                "set_yticklabels": "unique_top_rules_df['basket_pair'], fontsize=10"
+              },
+              "display_chart": "st.pyplot(fig)"
+            },
+            "display_insights": {
+              "subheader": "MBA Insights",
+              "insights": [],
+              "count": 0,
+              "iterate_rules_for_insights": {
+                "antecedents": "list(rule['antecedents'])",
+                "consequents": "list(rule['consequents'])",
+                "create_insights": {
+                  "loop_antecedents": {
+                    "loop_consequents": {
+                      "insight": "Customers who usually buy **{ant}** are more likely to buy **{cons}**",
+                      "check_insight": "if insight not in insights",
+                      "add_insight": "insights.append(insight)",
+                      "increment_count": "count += 1",
+                      "display_insight": "st.write(f'{count}. {insight}', unsafe_allow_html=True)"
+                    },
+                    "check_top_5_insights": "if count == 5"
+                  },
+                  "check_top_5_insights": "if count == 5"
+                }
+              }
+            }
+          },
+          "no_rules_found": "st.write('No association rules found. Try lowering the min_threshold value.')"
+        }
+      }
+    }
+  }
+  
